@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# benchmark output folders
+bench/bench_out/
+.vscode/
+bin/voronoify_native
+img/*.png
+img/*.ppm
