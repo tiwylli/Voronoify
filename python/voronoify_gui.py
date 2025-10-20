@@ -102,9 +102,9 @@ class VoronoifyGUI(tk.Tk):
         tk.Entry(self, textvariable=self.jitter_var).grid(row=3, column=1, sticky="w")
 
         # Edge thickness
-        tk.Label(self, text="Edge thickness:").grid(row=4, column=0, sticky="w")
-        self.edge_var = tk.IntVar(value=1)
-        tk.Entry(self, textvariable=self.edge_var).grid(row=4, column=1, sticky="w")
+        # tk.Label(self, text="Edge thickness:").grid(row=4, column=0, sticky="w")
+        self.edge_var = tk.IntVar(value=0)
+        # tk.Entry(self, textvariable=self.edge_var).grid(row=4, column=1, sticky="w")
 
         # Seed
         tk.Label(self, text="Seed:").grid(row=5, column=0, sticky="w")
@@ -156,26 +156,24 @@ class VoronoifyGUI(tk.Tk):
             state=("normal" if (HAS_RUST_PARALLEL or HAS_RUST_SINGLE) else "disabled"),
         ).pack(side="left")
 
-        # small preview area
-        self.preview_label = tk.Label(self)
-        self.preview_label.grid(row=7, column=0, columnspan=5)
+        # # small preview area
+        # self.preview_label = tk.Label(self)
+        # self.preview_label.grid(row=7, column=0, columnspan=5)
 
     def browse_input(self):
-        # Prefer separate patterns so dialogs show matching files correctly
+        # Group all image file extensions into a single pattern
         p = filedialog.askopenfilename(
             title="Select input image",
             filetypes=[
-                ("PNG", "*.png"),
-                ("JPEG", "*.jpg;*.jpeg"),
-                ("BMP", "*.bmp"),
-                ("PPM", "*.ppm"),
-                ("TIFF", "*.tif;*.tiff"),
+                (
+                    "Image files",
+                    "*.png *.jpg *.jpeg *.bmp *.ppm *.tif *.tiff",
+                ),
                 ("All files", "*"),
             ],
         )
         if p:
             self.input_var.set(p)
-            self._load_preview(p)
 
     def browse_output(self):
         p = filedialog.asksaveasfilename(
@@ -186,21 +184,21 @@ class VoronoifyGUI(tk.Tk):
         if p:
             self.output_var.set(p)
 
-    def _load_preview(self, path):
-        try:
-            im = Image.open(path)
-            im.thumbnail((256, 256))
-            self._preview_im = tk.PhotoImage(
-                master=self, data=im.convert("RGBA").tobytes("raw", "RGBA"), width=im.width, height=im.height
-            )
-            # fallback: use PhotoImage with file if above fails
-        except Exception:
-            try:
-                self._preview_im = tk.PhotoImage(file=path)
-            except Exception:
-                self._preview_im = None
-        if hasattr(self, "_preview_im") and self._preview_im is not None:
-            self.preview_label.configure(image=self._preview_im)
+    # def _load_preview(self, path):
+    #     try:
+    #         im = Image.open(path)
+    #         im.thumbnail((256, 256))
+    #         self._preview_im = tk.PhotoImage(
+    #             master=self, data=im.convert("RGBA").tobytes("raw", "RGBA"), width=im.width, height=im.height
+    #         )
+    #         # fallback: use PhotoImage with file if above fails
+    #     except Exception:
+    #         try:
+    #             self._preview_im = tk.PhotoImage(file=path)
+    #         except Exception:
+    #             self._preview_im = None
+    #     if hasattr(self, "_preview_im") and self._preview_im is not None:
+    #         self.preview_label.configure(image=self._preview_im)
 
     def run(self):
         inp = self.input_var.get()
@@ -326,8 +324,9 @@ class VoronoifyGUI(tk.Tk):
                 if hasattr(self, "_proc") and self._proc is not None and self._proc.returncode is None:
                     self._set_status("cancelled")
                 else:
-                    self._set_status("error")
-                    messagebox.showerror("Error", f"Processing failed: {e}")
+                    print("Process cancelled")
+                    # self._set_status("error")
+                    # messagebox.showerror("Error", f"Processing failed: {e}")
             finally:
                 # cleanup temp ppm if used
                 if temp_in_ppm is not None and temp_in_ppm.exists():
