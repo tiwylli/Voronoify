@@ -9,26 +9,6 @@ Voronoify creates Voronoi-style mosaics of images. This repository contains mult
 
 Input (left) and native CUDA output (right); files are under img/.
 
-
-
-Top-level layout (relevant paths)
-
-- `python/` — canonical Python sources (fast KD-tree/vectorized and CuPy prototype)
-- `voronoify_image_fast.py`, `voronoify_cupy.py` — thin top-level wrappers that call into `python/`
-- `cuda/` — native CUDA source and Makefile (builds into `bin/`)
-- `bin/` — build outputs (native binary lives here: `bin/voronoify_native`)
-- `img/` — default image outputs used by benches/tests
-- `voronoify-rs/` — Rust implementations (single-threaded + Rayon-parallel)
-- `bench/` — benchmark harnesses
-- `tests/` — small smoke tests (pytest)
-
-Why this repo has many implementations
-
-- Fast Python: easy to iterate and inspect (KD-tree + vectorized aggregations)
-- CuPy: prototype GPU label computation using Jump Flooding Algorithm (JFA)
-- Native CUDA: production-like native JFA host + kernels (built with nvcc)
-- Rust: performant CPU implementation (single-threaded and Rayon-parallel)
-
 Requirements
 
 - Linux (CUDA only required when building/running native CUDA)
@@ -90,10 +70,44 @@ target/release/voronoify_parallel ../img/input.jpg --out ../img/rust_out_paralle
 
 For iterative development use `cargo run --release -- <args>` (release-mode) or `cargo run -- <args>` (debug-mode) and pass the desired args after `--`.
 
+## Run (examples)
 
-Run (examples)
+### GUI (minimal)
 
-Python (fast KD-tree implementation):
+There is a very small Tkinter-based GUI included under the `python/` folder: `python/voronoify_gui.py`.
+
+Run
+
+```bash
+python python/voronoify_gui.py
+```
+
+What it does
+
+- Lets you pick an input image and an output path
+- Exposes basic parameters: number of cells, jitter, edge thickness, seed
+- Lets you choose backend method (python fast, slow CPU, CuPy, native CUDA, Rust) — options are disabled if not available on your system
+- Runs selected backend in a subprocess so the GUI stays responsive and provides a Cancel button
+
+Notes
+
+- The GUI is intentionally minimal. It calls backends as separate processes and will only enable CuPy/native/Rust options if those binaries/modules are present on the system.
+- For CuPy/CUDA you must install a CuPy wheel that matches your CUDA driver (see CuPy docs). Shipping GPU-enabled installers is non-trivial and not included here.
+
+### Benchmarking
+
+There is a small benchmark harness at `bench/benchmark_all.py`. It generates a synthetic image and runs each implementation it can detect, writing images into `img/` and results into an output directory.
+
+Example:
+
+```bash
+python bench/benchmark_all.py --size 512 --cells 512 --outdir bench/out_small
+# Larger run (example):
+python bench/benchmark_all.py --size 2048 --cells 4096 --outdir bench/out_big
+```
+
+
+### Python (fast KD-tree implementation):
 
 ```bash
 # top-level wrapper; implementation lives at python/voronoify_image_fast.py
@@ -106,7 +120,7 @@ CuPy prototype (if you installed CuPy):
 python voronoify_cupy.py input.jpg --out img/cupy_out.png --cells 2000 --jitter 0.6
 ```
 
-Native CUDA binary (built into `bin/`):
+### Native CUDA binary (built into `bin/`):
 
 ```bash
 # native binary expects PPM input/output (the Makefile and tests use this).
@@ -126,55 +140,3 @@ ImageMagick can convert JPG/PNG to/from PPM which the native binary uses:
 magick input.jpg input.ppm
 magick img/native_out.ppm img/native_out.png
 ```
-
-Benchmarking
-
-There is a small benchmark harness at `bench/benchmark_all.py`. It generates a synthetic image and runs each implementation it can detect, writing images into `img/` and results into an output directory.
-
-Example:
-
-```bash
-python bench/benchmark_all.py --size 512 --cells 512 --outdir bench/out_small
-# Larger run (example):
-python bench/benchmark_all.py --size 2048 --cells 4096 --outdir bench/out_big
-```
-
-Notes, troubleshooting, and recommendations
-
-- The Python implementations are the simplest to run and debug. The canonical Python sources live in `python/`.
-- For true end-to-end GPU speedups implement per-site color reduction on the GPU (atomics or tiled reduction). The native CUDA host currently performs the final color averaging on the host.
-
-
-## GUI (minimal)
-
-There is a very small Tkinter-based GUI included under the `python/` folder: `python/voronoify_gui.py`.
-
-Requirements
-
-- Python 3.8+
-- Pillow, numpy, scipy
-
-Install (example):
-
-```bash
-# from repo root
-python -m pip install -r python/../requirements.txt
-```
-
-Run
-
-```bash
-python python/voronoify_gui.py
-```
-
-What it does
-
-- Lets you pick an input image and an output path
-- Exposes basic parameters: number of cells, jitter, edge thickness, seed
-- Lets you choose backend method (python fast, slow CPU, CuPy, native CUDA, Rust) — options are disabled if not available on your system
-- Runs selected backend in a subprocess so the GUI stays responsive and provides a Cancel button
-
-Notes
-
-- The GUI is intentionally minimal. It calls backends as separate processes and will only enable CuPy/native/Rust options if those binaries/modules are present on the system.
-- For CuPy/CUDA you must install a CuPy wheel that matches your CUDA driver (see CuPy docs). Shipping GPU-enabled installers is non-trivial and not included here.
