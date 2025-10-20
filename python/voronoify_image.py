@@ -4,6 +4,8 @@
 from PIL import Image
 import numpy as np
 from scipy.spatial import cKDTree
+import argparse
+from pathlib import Path
 
 
 def voronoi_bitmap_colorize(
@@ -124,20 +126,31 @@ def voronoi_bitmap_colorize(
     return out_path
 
 
-# -----------------------------
-# example usage:
-# -----------------------------
-if __name__ == "__main__":
-    # input.png defines the size / geometry.
-    # palette.png is ANY bitmap whose colors you want to “stamp” into Voronoi cells.
-    result_path = voronoi_bitmap_colorize(
-        image_path="wave.jpg",
-        # palette_path="palette.png",  # e.g., a gradient, texture, or photo
-        out_path="wave_bitmap1200.png",
-        n_cells=1200,
-        jitter=0.5,
-        edge_thickness=1,
-        edge_color=(0, 0, 0),
-        seed=0,
+def _parse_args():
+    p = argparse.ArgumentParser()
+    p.add_argument("image")
+    p.add_argument("--out", default="voronoi_bitmap_cpu.png")
+    p.add_argument("--cells", type=int, default=1200)
+    p.add_argument("--jitter", type=float, default=0.5)
+    p.add_argument("--edge-thickness", type=int, default=1)
+    p.add_argument("--edge-color", type=int, nargs=3, default=(0, 0, 0))
+    p.add_argument("--seed", type=int, default=0)
+    return p.parse_args()
+
+
+def main():
+    args = _parse_args()
+    out = voronoi_bitmap_colorize(
+        image_path=args.image,
+        out_path=args.out,
+        n_cells=args.cells,
+        jitter=args.jitter,
+        edge_thickness=args.edge_thickness,
+        edge_color=tuple(args.edge_color),
+        seed=args.seed,
     )
-    print("saved:", result_path)
+    print("saved:", out)
+
+
+if __name__ == "__main__":
+    main()
