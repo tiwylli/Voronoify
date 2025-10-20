@@ -2,6 +2,14 @@
 # Voronoify
 
 Voronoify creates Voronoi-style mosaics of images. This repository contains multiple implementations and a small benchmark/test harness so you can compare CPU, Rust, and GPU approaches.
+<!-- Insert source and voronoify image using /img/wave.jpg and native_out.png-->
+| Source | Voronoify (native) |
+|---:|:---|
+| ![Source image](/img/wave.jpg) | ![Voronoify output](/img/native_out.png) |
+
+Input (left) and native CUDA output (right); files are under img/.
+
+
 
 Top-level layout (relevant paths)
 
@@ -135,3 +143,38 @@ Notes, troubleshooting, and recommendations
 
 - The Python implementations are the simplest to run and debug. The canonical Python sources live in `python/`.
 - For true end-to-end GPU speedups implement per-site color reduction on the GPU (atomics or tiled reduction). The native CUDA host currently performs the final color averaging on the host.
+
+
+## GUI (minimal)
+
+There is a very small Tkinter-based GUI included under the `python/` folder: `python/voronoify_gui.py`.
+
+Requirements
+
+- Python 3.8+
+- Pillow, numpy, scipy
+
+Install (example):
+
+```bash
+# from repo root
+python -m pip install -r python/../requirements.txt
+```
+
+Run
+
+```bash
+python python/voronoify_gui.py
+```
+
+What it does
+
+- Lets you pick an input image and an output path
+- Exposes basic parameters: number of cells, jitter, edge thickness, seed
+- Lets you choose backend method (python fast, slow CPU, CuPy, native CUDA, Rust) — options are disabled if not available on your system
+- Runs selected backend in a subprocess so the GUI stays responsive and provides a Cancel button
+
+Notes
+
+- The GUI is intentionally minimal. It calls backends as separate processes and will only enable CuPy/native/Rust options if those binaries/modules are present on the system.
+- For CuPy/CUDA you must install a CuPy wheel that matches your CUDA driver (see CuPy docs). Shipping GPU-enabled installers is non-trivial and not included here.
