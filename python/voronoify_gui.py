@@ -113,19 +113,19 @@ class VoronoifyGUI(tk.Tk):
 
         # Run / Cancel buttons + status
         self.run_btn = tk.Button(self, text="Run", command=self.run)
-        self.run_btn.grid(row=6, column=0)
+        self.run_btn.grid(row=7, column=0)
         self.cancel_btn = tk.Button(self, text="Cancel", command=self.cancel, state="disabled")
-        self.cancel_btn.grid(row=6, column=1)
+        self.cancel_btn.grid(row=7, column=1)
         self.status_var = tk.StringVar(value="idle")
-        tk.Label(self, textvariable=self.status_var).grid(row=6, column=2, sticky="w")
+        tk.Label(self, textvariable=self.status_var).grid(row=7, column=2, sticky="w")
         # track running subprocess (if any)
         self._proc = None
 
         # Backend selection (radio buttons)
-        tk.Label(self, text="Method:").grid(row=6, column=3, sticky="w")
+        tk.Label(self, text="Method:").grid(row=6, column=0, sticky="w")
         self.method_var = tk.StringVar(value="fast")
         methods_frame = tk.Frame(self)
-        methods_frame.grid(row=6, column=4, sticky="w")
+        methods_frame.grid(row=6, column=1)
         tk.Radiobutton(methods_frame, text="python fast", variable=self.method_var, value="fast").pack(side="left")
         tk.Radiobutton(
             methods_frame,
