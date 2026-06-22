@@ -1,19 +1,6 @@
----
-title: Voronoify
-emoji: 🧩
-colorFrom: blue
-colorTo: indigo
-sdk: gradio
-sdk_version: 6.19.0
-python_version: "3.12"
-app_file: app.py
-suggested_hardware: cpu-basic
-disable_embedding: false
----
-
 # Voronoify
 
-[**Try the live demo →**](https://tiwylli-voronoify.hf.space)
+[**Try the live demo on Hugging Face →**](https://tiwylli-voronoify.hf.space)
 
 Voronoify creates Voronoi-style mosaics of images. This repository contains multiple implementations and a small benchmark/test harness so you can compare CPU, Rust, and GPU approaches.
 <!-- Insert source and voronoify image using /img/wave.jpg and native_out.png-->
