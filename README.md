@@ -12,7 +12,7 @@ Input (left) and native CUDA output (right); files are under img/.
 Requirements
 
 - Linux (CUDA only required when building/running native CUDA)
-- Python 3.8+ (3.10+ tested)
+- Python 3.10+
 - `pip` and virtualenv recommended
 - Optional: CUDA toolkit & nvcc to build the native binary
 - Optional: CuPy (wheel matched to your CUDA version) for the CuPy prototype
@@ -72,27 +72,32 @@ For iterative development use `cargo run --release -- <args>` (release-mode) or 
 
 ## Run (examples)
 
-### GUI (minimal)
+### Local web UI
 
-There is a very small Tkinter-based GUI included under the `python/` folder: `python/voronoify_gui.py`.
+Voronoify includes a Gradio web interface that runs entirely on your machine. It binds to `127.0.0.1`, does not create a public share link, and opens in your default browser.
 
-Run
+After installing the Python dependencies, run:
 
 ```bash
 python python/voronoify_gui.py
 ```
 
-What it does
+The UI provides:
 
-- Lets you pick an input image and an output path
-- Exposes basic parameters: number of cells, jitter, edge thickness, seed
-- Lets you choose backend method (python fast, slow CPU, CuPy, native CUDA, Rust) — options are disabled if not available on your system
-- Runs selected backend in a subprocess so the GUI stays responsive and provides a Cancel button
+- Drag-and-drop image upload with PNG preview and download
+- Bold, Balanced, and Fine presets plus editable cells, jitter, and seed controls
+- Python, CuPy, native CUDA, and Rust backend selection when available
+- A backend-status panel explaining why optional methods are unavailable
+- A single-job queue and a Cancel button that terminates the active backend process
 
 Notes
 
-- The GUI is intentionally minimal. It calls backends as separate processes and will only enable CuPy/native/Rust options if those binaries/modules are present on the system.
-- For CuPy/CUDA you must install a CuPy wheel that matches your CUDA driver (see CuPy docs). Shipping GPU-enabled installers is non-trivial and not included here.
+- Generated images are temporary; use the download control in the output preview to keep a result.
+- The fast Python backend is selected by default. All backends run as subprocesses so failures and cancellation remain isolated from the web server.
+- CuPy is enabled only when its matching wheel is installed and it can access a CUDA device.
+- Native CUDA requires `bin/voronoify_native`; build it with `make -C cuda`.
+- Rust requires a debug or release binary; build it with `cargo build --release --manifest-path rust/Cargo.toml`.
+- Cell-edge controls remain available through the backend command-line interfaces, but are not exposed in the common web UI.
 
 ### Benchmarking
 
