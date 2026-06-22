@@ -15,10 +15,12 @@ from python.voronoify_runner import (
     JobCancelled,
     JobManager,
     RunConfig,
+    RunLimits,
     RunnerError,
     build_command,
     cancel_job,
     detect_backends,
+    resize_to_pixel_budget,
     run_job,
     validate_config,
 )
@@ -77,6 +79,36 @@ def test_validate_config_rejects_invalid_values(
         )
 
 
+def test_run_limits_require_valid_pixel_budgets() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        RunLimits(0, 0)
+    with pytest.raises(ValueError, match="cannot exceed"):
+        RunLimits(100, 101)
+
+
+def test_resize_to_pixel_budget_preserves_aspect_ratio() -> None:
+    original = (4000, 3000)
+    resized = resize_to_pixel_budget(original, 2_000_000)
+
+    assert resized[0] * resized[1] <= 2_000_000
+    assert resized[0] < original[0]
+    assert resized[0] / resized[1] == pytest.approx(original[0] / original[1], rel=0.001)
+
+
+def test_resize_to_pixel_budget_does_not_upscale() -> None:
+    assert resize_to_pixel_budget((800, 600), 2_000_000) == (800, 600)
+
+
+def test_validate_config_rejects_source_above_limit(tmp_path: Path) -> None:
+    image_path = make_image(tmp_path / "input.png", (100, 100))
+    with pytest.raises(RunnerError, match="5,000-pixel source limit"):
+        validate_config(
+            RunConfig(image_path, "fast", 100, 0.5, 0),
+            {"fast": BackendSpec("fast", "Fast", True)},
+            RunLimits(max_source_pixels=5_000, max_output_pixels=2_000),
+        )
+
+
 @pytest.mark.parametrize(
     ("backend", "expected"),
     [
@@ -117,6 +149,24 @@ def test_fast_backend_integration_uses_repository_image(tmp_path: Path) -> None:
 
     assert result.image.size == (96, 54)
     assert result.image.mode == "RGB"
+    assert result.source_size == (96, 54)
+    assert result.processed_size == (96, 54)
+
+
+def test_fast_backend_resizes_to_public_pixel_budget(tmp_path: Path) -> None:
+    input_path = make_image(tmp_path / "input.png", (200, 100))
+    backend = BackendSpec("fast", "Python fast (SciPy)", True)
+
+    result = run_job(
+        RunConfig(input_path, "fast", 20, 0.5, 0),
+        "resize-test",
+        backends=[backend],
+        limits=RunLimits(max_source_pixels=25_000, max_output_pixels=10_000),
+    )
+
+    assert result.source_size == (200, 100)
+    assert result.processed_size == resize_to_pixel_budget((200, 100), 10_000)
+    assert result.image.size == result.processed_size
 
 
 def test_native_backend_converts_ppm_output_to_rgb(tmp_path: Path) -> None:
@@ -144,6 +194,8 @@ def test_native_backend_converts_ppm_output_to_rgb(tmp_path: Path) -> None:
 
     assert result.image.size == (12, 8)
     assert result.image.mode == "RGB"
+    assert result.source_size == (12, 8)
+    assert result.processed_size == (12, 8)
 
 
 def test_run_job_removes_temporary_output_directory(tmp_path: Path) -> None:

@@ -17,6 +17,7 @@ from python.voronoify_runner import (  # noqa: E402
     BackendSpec,
     JobCancelled,
     RunConfig,
+    RunLimits,
     RunnerError,
     cancel_job,
     detect_backends,
@@ -29,6 +30,8 @@ PRESETS = {
     "Balanced": (1200, 0.5),
     "Fine": (3000, 0.35),
 }
+PUBLIC_LIMITS = RunLimits(max_source_pixels=25_000_000, max_output_pixels=2_000_000)
+PUBLIC_DEMO_IMAGE = REPO_ROOT / "img" / "demo_wave.jpg"
 
 
 def _backend_status(backends: list[BackendSpec]) -> str:
@@ -47,8 +50,12 @@ def _coerce_integer(value: int | float | None, name: str) -> int:
     return int(value)
 
 
-def create_app(backends: list[BackendSpec] | None = None) -> gr.Blocks:
-    backend_specs = detect_backends() if backends is None else backends
+def _create_app(
+    backend_specs: list[BackendSpec],
+    *,
+    public: bool,
+    limits: RunLimits | None,
+) -> gr.Blocks:
     backend_map = {backend.identifier: backend for backend in backend_specs}
     choices = [(backend.label, backend.identifier) for backend in backend_specs if backend.available]
     fast_backend = backend_map.get("fast")
@@ -66,8 +73,21 @@ def create_app(backends: list[BackendSpec] | None = None) -> gr.Blocks:
                 jitter=float(jitter),
                 seed=_coerce_integer(seed, "Seed"),
             )
-            result = run_job(config, request.session_hash or "local", backends=backend_specs)
-            yield result.image, f"Completed with {result.backend.label} in {result.elapsed_seconds:.2f}s."
+            result = run_job(
+                config,
+                request.session_hash or "local",
+                backends=backend_specs,
+                limits=limits,
+            )
+            resize_note = ""
+            if result.processed_size != result.source_size:
+                source = f"{result.source_size[0]}×{result.source_size[1]}"
+                processed = f"{result.processed_size[0]}×{result.processed_size[1]}"
+                resize_note = f" Resized from {source} to {processed} for the public demo."
+            yield (
+                result.image,
+                f"Completed with {result.backend.label} in {result.elapsed_seconds:.2f}s.{resize_note}",
+            )
         except JobCancelled:
             yield gr.skip(), "Generation cancelled."
         except (RunnerError, TypeError, ValueError) as exc:
@@ -88,25 +108,39 @@ def create_app(backends: list[BackendSpec] | None = None) -> gr.Blocks:
     ) as app:
         gr.Markdown(
             "# Voronoify\n"
-            "Turn an image into a Voronoi mosaic using the processing backend available on this machine."
+            + (
+                "Create a Voronoi mosaic directly in your browser with the fast CPU implementation."
+                if public
+                else "Turn an image into a Voronoi mosaic using a backend available on this machine."
+            )
         )
+        if public:
+            gr.Markdown(
+                "> **Public demo:** Images are processed temporarily and are not intentionally retained. "
+                "Do not upload sensitive material. Uploads are limited to 10 MB; images over 25 "
+                "megapixels are rejected, and images over 2 megapixels are resized."
+            )
         with gr.Row(equal_height=True):
             with gr.Column(scale=1, min_width=320):
                 input_image = gr.Image(
+                    value=str(PUBLIC_DEMO_IMAGE) if public else None,
                     label="Input image",
                     type="filepath",
                     sources=["upload"],
                     height=430,
                 )
-                backend = gr.Dropdown(
-                    choices=choices,
-                    value=default_backend,
-                    label="Backend",
-                    info="Only runnable backends can be selected.",
-                    interactive=bool(choices),
-                )
-                with gr.Accordion("Backend availability", open=False):
-                    gr.Markdown(_backend_status(backend_specs))
+                if public:
+                    backend = gr.State("fast")
+                else:
+                    backend = gr.Dropdown(
+                        choices=choices,
+                        value=default_backend,
+                        label="Backend",
+                        info="Only runnable backends can be selected.",
+                        interactive=bool(choices),
+                    )
+                    with gr.Accordion("Backend availability", open=False):
+                        gr.Markdown(_backend_status(backend_specs))
             with gr.Column(scale=1, min_width=320):
                 output_image = gr.Image(
                     label="Voronoi output",
@@ -158,6 +192,19 @@ def create_app(backends: list[BackendSpec] | None = None) -> gr.Blocks:
         app.unload(cleanup)
 
     return app
+
+
+def create_app(backends: list[BackendSpec] | None = None) -> gr.Blocks:
+    backend_specs = detect_backends() if backends is None else backends
+    return _create_app(backend_specs, public=False, limits=None)
+
+
+def create_public_app(backends: list[BackendSpec] | None = None) -> gr.Blocks:
+    detected = detect_backends(probe_cupy=False) if backends is None else backends
+    fast_backend = next((backend for backend in detected if backend.identifier == "fast"), None)
+    if fast_backend is None:
+        fast_backend = BackendSpec("fast", "Python fast (SciPy)", False, "Backend module is missing.")
+    return _create_app([fast_backend], public=True, limits=PUBLIC_LIMITS)
 
 
 def main() -> None:

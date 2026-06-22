@@ -10,6 +10,7 @@ import tempfile
 import threading
 import time
 from dataclasses import dataclass
+from math import sqrt
 from pathlib import Path
 from typing import Callable, Mapping, Sequence
 
@@ -38,11 +39,25 @@ class RunConfig:
 
 
 @dataclass(frozen=True)
+class RunLimits:
+    max_source_pixels: int
+    max_output_pixels: int
+
+    def __post_init__(self) -> None:
+        if self.max_source_pixels <= 0 or self.max_output_pixels <= 0:
+            raise ValueError("Image limits must be positive.")
+        if self.max_output_pixels > self.max_source_pixels:
+            raise ValueError("The output pixel limit cannot exceed the source pixel limit.")
+
+
+@dataclass(frozen=True)
 class RunResult:
     image: Image.Image
     backend: BackendSpec
     elapsed_seconds: float
     output: str
+    source_size: tuple[int, int]
+    processed_size: tuple[int, int]
 
 
 class RunnerError(RuntimeError):
@@ -216,7 +231,11 @@ def detect_backends(
     return backends
 
 
-def validate_config(config: RunConfig, backends: Mapping[str, BackendSpec]) -> RunConfig:
+def validate_config(
+    config: RunConfig,
+    backends: Mapping[str, BackendSpec],
+    limits: RunLimits | None = None,
+) -> RunConfig:
     image_path = Path(config.image_path) if config.image_path else None
     if image_path is None or not image_path.is_file():
         raise RunnerError("Upload an input image before generating.")
@@ -234,10 +253,35 @@ def validate_config(config: RunConfig, backends: Mapping[str, BackendSpec]) -> R
 
     try:
         with Image.open(image_path) as image:
+            width, height = image.size
+            if limits is not None and width * height > limits.max_source_pixels:
+                raise RunnerError(
+                    f"Image dimensions exceed the {limits.max_source_pixels:,}-pixel source limit."
+                )
             image.verify()
+    except RunnerError:
+        raise
     except Exception as exc:
         raise RunnerError(f"The uploaded file is not a readable image: {exc}") from exc
     return config
+
+
+def resize_to_pixel_budget(size: tuple[int, int], max_pixels: int) -> tuple[int, int]:
+    """Return the largest proportional size that does not exceed max_pixels."""
+    width, height = size
+    if width <= 0 or height <= 0 or max_pixels <= 0:
+        raise ValueError("Image dimensions and max_pixels must be positive.")
+    if width * height <= max_pixels:
+        return size
+
+    scale = sqrt(max_pixels / (width * height))
+    resized = (max(1, int(width * scale)), max(1, int(height * scale)))
+    while resized[0] * resized[1] > max_pixels:
+        if resized[0] >= resized[1]:
+            resized = (resized[0] - 1, resized[1])
+        else:
+            resized = (resized[0], resized[1] - 1)
+    return resized
 
 
 def build_command(
@@ -334,13 +378,14 @@ def run_job(
     manager: JobManager = JOB_MANAGER,
     popen_factory: PopenFactory = subprocess.Popen,
     python_executable: str = sys.executable,
+    limits: RunLimits | None = None,
 ) -> RunResult:
     """Run one backend process and return a detached in-memory result image."""
     available_backends = (
         detect_backends(python_executable=python_executable) if backends is None else backends
     )
     backend_map = {backend.identifier: backend for backend in available_backends}
-    validate_config(config, backend_map)
+    validate_config(config, backend_map, limits)
     backend = backend_map[config.backend]
     source_path = Path(config.image_path)
     process: subprocess.Popen[str] | None = None
@@ -350,13 +395,27 @@ def run_job(
     try:
         with tempfile.TemporaryDirectory(prefix="voronoify-") as temp_dir_name:
             temp_dir = Path(temp_dir_name)
+            with Image.open(source_path) as source:
+                source_size = source.size
+                processed_size = (
+                    resize_to_pixel_budget(source_size, limits.max_output_pixels)
+                    if limits is not None
+                    else source_size
+                )
+                needs_copy = backend.identifier == "native" or processed_size != source_size
+                if needs_copy:
+                    input_format = "PPM" if backend.identifier == "native" else "PNG"
+                    input_path = temp_dir / f"input.{input_format.lower()}"
+                    prepared = source.convert("RGB")
+                    if processed_size != source_size:
+                        prepared = prepared.resize(processed_size, Image.Resampling.LANCZOS)
+                    prepared.save(input_path, format=input_format)
+                else:
+                    input_path = source_path
+
             if backend.identifier == "native":
-                input_path = temp_dir / "input.ppm"
                 output_path = temp_dir / "output.ppm"
-                with Image.open(source_path) as source:
-                    source.convert("RGB").save(input_path, format="PPM")
             else:
-                input_path = source_path
                 output_path = temp_dir / "output.png"
 
             command = build_command(config, backend, input_path, output_path, python_executable)
@@ -380,7 +439,14 @@ def run_job(
 
             png_path = temp_dir / "output.png" if backend.identifier == "native" else None
             image = _load_result(output_path, png_path)
-            return RunResult(image, backend, time.monotonic() - started, stdout.strip())
+            return RunResult(
+                image,
+                backend,
+                time.monotonic() - started,
+                stdout.strip(),
+                source_size,
+                processed_size,
+            )
     finally:
         manager.finish(session_id, process)
 

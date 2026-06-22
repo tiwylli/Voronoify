@@ -1,5 +1,4 @@
 pillow
 numpy
 scipy
-pytest
 gradio>=6.18,<7

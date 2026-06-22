@@ -1,5 +1,19 @@
+---
+title: Voronoify
+emoji: 🧩
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 6.19.0
+python_version: "3.12"
+app_file: app.py
+suggested_hardware: cpu-basic
+disable_embedding: false
+---
 
 # Voronoify
+
+[**Try the live demo →**](https://tiwylli-voronoify.hf.space)
 
 Voronoify creates Voronoi-style mosaics of images. This repository contains multiple implementations and a small benchmark/test harness so you can compare CPU, Rust, and GPU approaches.
 <!-- Insert source and voronoify image using /img/wave.jpg and native_out.png-->
@@ -26,6 +40,12 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -U pip setuptools wheel
 pip install -r requirements.txt
+```
+
+For development and tests, install `requirements-dev.txt` instead:
+
+```bash
+pip install -r requirements-dev.txt
 ```
 
 If you plan to run the CuPy prototype, install the correct CuPy wheel for your CUDA version (see CuPy docs). Example (CUDA 11.8):
@@ -71,6 +91,12 @@ target/release/voronoify_parallel ../img/input.jpg --out ../img/rust_out_paralle
 For iterative development use `cargo run --release -- <args>` (release-mode) or `cargo run -- <args>` (debug-mode) and pass the desired args after `--`.
 
 ## Run (examples)
+
+### Public web demo
+
+The zero-install CPU demo is hosted at [tiwylli-voronoify.hf.space](https://tiwylli-voronoify.hf.space). It exposes the fast SciPy implementation, processes one job at a time, and automatically resizes images above two megapixels. Uploads are limited to 10 MB and should not contain sensitive material.
+
+The free Hugging Face Space may need time to wake after a period without visitors. The full backend selector remains available in the local web UI.
 
 ### Local web UI
 
