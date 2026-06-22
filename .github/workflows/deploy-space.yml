@@ -28,11 +28,29 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: huggingface/hub-sync@v0.1.0
+      - uses: actions/setup-python@v6
         with:
-          github_repo_id: ${{ github.repository }}
-          huggingface_repo_id: tiwylli/voronoify
-          hf_token: ${{ secrets.HF_TOKEN }}
-          repo_type: space
-          space_sdk: gradio
-          private: false
+          python-version: "3.12"
+      # Hugging Face requires this metadata at the top; GitHub otherwise renders it first.
+      - name: Build Hugging Face README
+        run: |
+          {
+            printf '%s\n' '---'
+            cat .huggingface/space-metadata.yml
+            printf '%s\n\n' '---'
+            cat README.md
+          } > README.space.md
+          mv README.space.md README.md
+      - name: Install Hugging Face CLI
+        run: python -m pip install --upgrade huggingface_hub
+      - name: Deploy Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: >-
+          hf upload tiwylli/voronoify . .
+          --repo-type space
+          --exclude '.git/*'
+          --exclude '.github/*'
+          --exclude '.huggingface/*'
+          --delete '*'
+          --commit-message "Deploy from GitHub ${{ github.sha }}"
